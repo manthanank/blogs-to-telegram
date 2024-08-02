@@ -27,9 +27,9 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          LATEST_DEVTO_ARTICLE=$(jq -r '.[0]' devto_articles.json || echo '{}')
-          DEVTO_TITLE=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.title' || echo 'No Title')
-          DEVTO_URL=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.url' || echo 'No URL')
-          DEVTO_MESSAGE="New DEV.to article published: $DEVTO_TITLE\n$DEVTO_URL"
+          LATEST_ARTICLE=$(jq -r '.[0]' devto_articles.json)
+          TITLE=$(echo $LATEST_ARTICLE | jq -r '.title')
+          URL=$(echo $LATEST_ARTICLE | jq -r '.url')
+          MESSAGE="New article published: $TITLE\n$URL"
           curl -s --data "chat_id=$TELEGRAM_CHAT_ID&text=$MESSAGE" \
             "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"

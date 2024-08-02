@@ -21,6 +21,7 @@ jobs:
           curl -X GET "https://dev.to/api/articles/me/published" \
             -H "api-key: $DEVTO_API_KEY" \
             -o devto_articles.json
+          cat devto_articles.json
 
       - name: Get Hashnode Articles
         id: get_hashnode_articles
@@ -29,25 +30,28 @@ jobs:
         run: |
           curl -X POST "https://api.hashnode.com" \
             -H "Content-Type: application/json" \
-            -H "Authorization: $HASHNODE_API_KEY" \
+            -H "Authorization: Bearer $HASHNODE_API_KEY" \
             -d '{"query": "{ user(username: \"your_hashnode_username\") { publication { posts(page: 0) { title, brief, slug } } } }"}' \
             -o hashnode_articles.json
+          cat hashnode_articles.json
 
       - name: Post to Telegram
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Process DEV.to articles
-          LATEST_DEVTO_ARTICLE=$(jq -r '.[0]' devto_articles.json)
-          DEVTO_TITLE=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.title')
-          DEVTO_URL=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.url')
+          # Debug output for DEV.to articles
+          cat devto_articles.json
+          LATEST_DEVTO_ARTICLE=$(jq -r '.[0]' devto_articles.json || echo '{}')
+          DEVTO_TITLE=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.title' || echo 'No Title')
+          DEVTO_URL=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.url' || echo 'No URL')
           DEVTO_MESSAGE="New DEV.to article published: $DEVTO_TITLE\n$DEVTO_URL"
 
-          # Process Hashnode articles
-          LATEST_HASHNODE_ARTICLE=$(jq -r '.data.user.publication.posts[0]' hashnode_articles.json)
-          HASHNODE_TITLE=$(echo $LATEST_HASHNODE_ARTICLE | jq -r '.title')
-          HASHNODE_SLUG=$(echo $LATEST_HASHNODE_ARTICLE | jq -r '.slug')
+          # Debug output for Hashnode articles
+          cat hashnode_articles.json
+          LATEST_HASHNODE_ARTICLE=$(jq -r '.data.user.publication.posts[0]' hashnode_articles.json || echo '{}')
+          HASHNODE_TITLE=$(echo $LATEST_HASHNODE_ARTICLE | jq -r '.title' || echo 'No Title')
+          HASHNODE_SLUG=$(echo $LATEST_HASHNODE_ARTICLE | jq -r '.slug' || echo 'No Slug')
           HASHNODE_URL="https://your_hashnode_username.hashnode.dev/$HASHNODE_SLUG"
           HASHNODE_MESSAGE="New Hashnode article published: $HASHNODE_TITLE\n$HASHNODE_URL"
 
@@ -56,4 +60,3 @@ jobs:
             "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"
           curl -s --data "chat_id=$TELEGRAM_CHAT_ID&text=$HASHNODE_MESSAGE" \
             "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"
-            

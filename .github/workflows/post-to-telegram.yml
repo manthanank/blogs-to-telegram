@@ -1,4 +1,4 @@
-name: Post DEV.to Articles to Telegram
+name: Post DEV.to and Hashnode Articles to Telegram
 
 on:
   schedule:
@@ -14,22 +14,47 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Get DEV.to Articles
-        id: get_articles
+        id: get_devto_articles
         env:
           DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}
         run: |
           curl -X GET "https://dev.to/api/articles/me/published" \
             -H "api-key: $DEVTO_API_KEY" \
             -o devto_articles.json
+          cat devto_articles.json  # Output the contents for debugging
+
+      - name: Get Hashnode Articles
+        id: get_hashnode_articles
+        env:
+          HASHNODE_API_KEY: ${{ secrets.HASHNODE_API_KEY }}
+        run: |
+          curl -X POST "https://api.hashnode.com" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $HASHNODE_API_KEY" \
+            -d '{"query": "{ user(username: \"manthanank\") { publication { posts(page: 0) { title, brief, slug } } } }"}' \
+            -o hashnode_articles.json
+          cat hashnode_articles.json  # Output the contents for debugging
 
       - name: Post to Telegram
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          LATEST_ARTICLE=$(jq -r '.[0]' devto_articles.json)
-          TITLE=$(echo $LATEST_ARTICLE | jq -r '.title')
-          URL=$(echo $LATEST_ARTICLE | jq -r '.url')
-          MESSAGE="New article published: $TITLE\n$URL"
-          curl -s --data "chat_id=$TELEGRAM_CHAT_ID&text=$MESSAGE" \
+          # Process DEV.to articles
+          LATEST_DEVTO_ARTICLE=$(jq -r '.[0]' devto_articles.json || echo '{}')
+          DEVTO_TITLE=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.title' || echo 'No Title')
+          DEVTO_URL=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.url' || echo 'No URL')
+          DEVTO_MESSAGE="New DEV.to article published: $DEVTO_TITLE\n$DEVTO_URL"
+
+          # Process Hashnode articles
+          LATEST_HASHNODE_ARTICLE=$(jq -r '.data.user.publication.posts[0]' hashnode_articles.json || echo '{}')
+          HASHNODE_TITLE=$(echo $LATEST_HASHNODE_ARTICLE | jq -r '.title' || echo 'No Title')
+          HASHNODE_SLUG=$(echo $LATEST_HASHNODE_ARTICLE | jq -r '.slug' || echo 'No Slug')
+          HASHNODE_URL="https://manthanank.hashnode.dev/$HASHNODE_SLUG"
+          HASHNODE_MESSAGE="New Hashnode article published: $HASHNODE_TITLE\n$HASHNODE_URL"
+
+          # Send messages to Telegram
+          curl -s --data "chat_id=$TELEGRAM_CHAT_ID&text=$DEVTO_MESSAGE" \
+            "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"
+          curl -s --data "chat_id=$TELEGRAM_CHAT_ID&text=$HASHNODE_MESSAGE" \
             "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"

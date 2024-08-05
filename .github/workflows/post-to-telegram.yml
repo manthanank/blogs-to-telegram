@@ -23,7 +23,27 @@ jobs:
             -o devto_articles.json
           cat devto_articles.json  # Output the contents for debugging
 
+      - name: Check if new article is posted
+        id: check_new_article
+        run: |
+          # Get the ID of the latest article
+          LATEST_DEVTO_ARTICLE_ID=$(jq -r '.[0].id' devto_articles.json || echo '0')
+          
+          # Read the last posted article ID from the file
+          LAST_POSTED_ARTICLE_ID=$(cat last_posted_article_id.txt || echo '0')
+          
+          # Check if the latest article is new
+          if [ "$LATEST_DEVTO_ARTICLE_ID" != "$LAST_POSTED_ARTICLE_ID" ]; then
+            echo "New article found"
+            echo "::set-output name=new_article::true"
+            echo $LATEST_DEVTO_ARTICLE_ID > last_posted_article_id.txt
+          else
+            echo "No new article"
+            echo "::set-output name=new_article::false"
+          fi
+
       - name: Post to Telegram
+        if: steps.check_new_article.outputs.new_article == 'true'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -37,3 +57,12 @@ jobs:
           # Send messages to Telegram
           curl -s --data "chat_id=$TELEGRAM_CHAT_ID&text=$DEVTO_MESSAGE" \
             "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"
+
+      - name: Commit last posted article ID
+        if: steps.check_new_article.outputs.new_article == 'true'
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git add last_posted_article_id.txt
+          git commit -m 'Update last posted article ID'
+          git push

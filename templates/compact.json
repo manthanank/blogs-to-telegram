@@ -1,0 +1,5 @@
+{
+  "name": "Compact Template",
+  "template": "New article: [{{title}}]({{url}}){{#if reading_time}} ({{reading_time}} min){{/if}}",
+  "description": "A compact template for posting DEV.to articles to Telegram"
+}

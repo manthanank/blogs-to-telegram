@@ -1,0 +1,15 @@
+{
+    "message_template": "New DEV.to article published: [\"{title}\"]({url})",
+    "check_interval_hours": 1,
+    "telegram_parse_mode": "Markdown",
+    "format_options": {
+        "include_cover_image": true,
+        "include_tags": true,
+        "include_reading_time": true
+    },
+    "error_notification": {
+        "enabled": true,
+        "max_retries": 3,
+        "retry_delay_seconds": 60
+    }
+}

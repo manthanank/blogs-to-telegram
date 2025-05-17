@@ -1,0 +1,5 @@
+{
+  "name": "Default Template",
+  "template": "📝 *New DEV.to Article Published* 📝\n\n*{{title}}*\n\n{{#if description}}{{description}}\n\n{{/if}}🔗 [Read the full article]({{url}})\n\n{{#if tags}}Tags: {{tags}}{{/if}}{{#if reading_time}}\n\n⏱️ Reading time: {{reading_time}} min{{/if}}{{#if published_date}}\n\n📅 Published on {{published_date}}{{/if}}\n\n✍️ By {{user}}",
+  "description": "The default template for posting DEV.to articles to Telegram"
+}

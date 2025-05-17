@@ -13,88 +13,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Get DEV.to Articles
-        id: get_devto_articles
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run posting script
+        run: python src/advanced_post_to_telegram.py
         env:
           DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}
-        run: |
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "https://dev.to/api/articles/me/published" \
-            -H "api-key: $DEVTO_API_KEY")
-          
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          CONTENT=$(echo "$RESPONSE" | sed '$ d')
-          
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "Error fetching articles: $CONTENT"
-            exit 1
-          fi
-          
-          echo "$CONTENT" > devto_articles.json
-          cat devto_articles.json  # Output the contents for debugging
-
-      - name: Check if new article is posted
-        id: check_new_article
-        run: |
-          # Get the ID of the latest article
-          LATEST_DEVTO_ARTICLE_ID=$(jq -r '.[0].id' devto_articles.json || echo '0')
-          
-          # Read the last posted article ID from the file
-          LAST_POSTED_ARTICLE_ID=$(cat last_posted_article_id.txt || echo '0')
-          
-          # Check if the latest article is new
-          if [ "$LATEST_DEVTO_ARTICLE_ID" != "$LAST_POSTED_ARTICLE_ID" ]; then
-            echo "New article found"
-            echo "new_article=true" >> $GITHUB_OUTPUT
-            echo $LATEST_DEVTO_ARTICLE_ID > last_posted_article_id.txt
-          else
-            echo "No new article"
-            echo "new_article=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Post to Telegram
-        if: steps.check_new_article.outputs.new_article == 'true'
-        env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          # Read the last posted article ID
-          LAST_POSTED_ARTICLE_ID=$(cat last_posted_article_id.txt)
-          
-          # Process all new DEV.to articles (in reverse order to post oldest first)
-          jq -c 'reverse | .[]' devto_articles.json | while read -r article; do
-            ARTICLE_ID=$(echo $article | jq -r '.id')
-            
-            # Skip if this is not a new article
-            if [ "$ARTICLE_ID" -le "$LAST_POSTED_ARTICLE_ID" ]; then
-              continue
-            fi
-            
-            TITLE=$(echo $article | jq -r '.title')
-            URL=$(echo $article | jq -r '.url')
-            DESCRIPTION=$(echo $article | jq -r '.description // ""')
-            
-            # Format message with Markdown
-            MESSAGE="*New DEV.to article published:*%0A[${TITLE}](${URL})%0A%0A${DESCRIPTION}"
-            
-            # Send message to Telegram
-            curl -s --data "chat_id=$TELEGRAM_CHAT_ID&text=$MESSAGE&parse_mode=Markdown" \
-              "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"
-            
-            # Update the last posted article ID (use the latest one)
-            if [ "$ARTICLE_ID" -gt "$LAST_POSTED_ARTICLE_ID" ]; then
-              LAST_POSTED_ARTICLE_ID=$ARTICLE_ID
-              echo $LAST_POSTED_ARTICLE_ID > last_posted_article_id.txt
-            fi
-            
-            # Wait a bit between messages to avoid rate limiting
-            sleep 2
-          done
 
-      - name: Commit last posted article ID
-        if: steps.check_new_article.outputs.new_article == 'true'
+      - name: Commit changes
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           git add last_posted_article_id.txt
-          git commit -m 'Update last posted article ID'
+          git add metrics.json || true
+          git diff --quiet && git diff --staged --quiet || git commit -m 'Update last posted article ID and metrics'
           git push

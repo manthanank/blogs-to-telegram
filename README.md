@@ -40,3 +40,21 @@ Feel free to contribute to this project and help make it better. You can create 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Important Note About Workflow Behavior
+
+- The workflow only checks the **latest** published article on DEV.to.
+- It will post to Telegram **only if the latest article is new** (i.e., its ID is greater than the one stored in `last_posted_article_id.txt`).
+- **Limitation:** If you publish multiple articles between workflow runs, only the most recent (latest) article will be posted to Telegram. Older articles may be skipped.
+
+## Troubleshooting
+
+If your article is not posted to Telegram:
+
+- Make sure your GitHub repository secrets are set correctly:
+  - `DEVTO_API_KEY` (your DEV.to API key)
+  - `TELEGRAM_BOT_TOKEN` (your Telegram bot token)
+  - `TELEGRAM_CHAT_ID` (the chat/channel ID for posting)
+- Check the Actions tab for workflow run logs and errors.
+- Ensure your Telegram bot is in the target chat and has permission to post.
+- Confirm that your latest article's ID is greater than the one in `last_posted_article_id.txt`.

@@ -18,18 +18,9 @@ jobs:
         env:
           DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}
         run: |
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "https://dev.to/api/articles/me/published" \
-            -H "api-key: $DEVTO_API_KEY")
-          
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          CONTENT=$(echo "$RESPONSE" | sed '$ d')
-          
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "Error fetching articles: $CONTENT"
-            exit 1
-          fi
-          
-          echo "$CONTENT" > devto_articles.json
+          curl -X GET "https://dev.to/api/articles/me/published" \
+            -H "api-key: $DEVTO_API_KEY" \
+            -o devto_articles.json
           cat devto_articles.json  # Output the contents for debugging
 
       - name: Check if new article is posted
@@ -44,11 +35,11 @@ jobs:
           # Check if the latest article is new
           if [ "$LATEST_DEVTO_ARTICLE_ID" != "$LAST_POSTED_ARTICLE_ID" ]; then
             echo "New article found"
-            echo "new_article=true" >> $GITHUB_OUTPUT
+            echo "::set-output name=new_article::true"
             echo $LATEST_DEVTO_ARTICLE_ID > last_posted_article_id.txt
           else
             echo "No new article"
-            echo "new_article=false" >> $GITHUB_OUTPUT
+            echo "::set-output name=new_article::false"
           fi
 
       - name: Post to Telegram
@@ -57,38 +48,15 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Read the last posted article ID
-          LAST_POSTED_ARTICLE_ID=$(cat last_posted_article_id.txt)
-          
-          # Process all new DEV.to articles (in reverse order to post oldest first)
-          jq -c 'reverse | .[]' devto_articles.json | while read -r article; do
-            ARTICLE_ID=$(echo $article | jq -r '.id')
-            
-            # Skip if this is not a new article
-            if [ "$ARTICLE_ID" -le "$LAST_POSTED_ARTICLE_ID" ]; then
-              continue
-            fi
-            
-            TITLE=$(echo $article | jq -r '.title')
-            URL=$(echo $article | jq -r '.url')
-            DESCRIPTION=$(echo $article | jq -r '.description // ""')
-            
-            # Format message with Markdown
-            MESSAGE="*New DEV.to article published:*%0A[${TITLE}](${URL})%0A%0A${DESCRIPTION}"
-            
-            # Send message to Telegram
-            curl -s --data "chat_id=$TELEGRAM_CHAT_ID&text=$MESSAGE&parse_mode=Markdown" \
-              "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"
-            
-            # Update the last posted article ID (use the latest one)
-            if [ "$ARTICLE_ID" -gt "$LAST_POSTED_ARTICLE_ID" ]; then
-              LAST_POSTED_ARTICLE_ID=$ARTICLE_ID
-              echo $LAST_POSTED_ARTICLE_ID > last_posted_article_id.txt
-            fi
-            
-            # Wait a bit between messages to avoid rate limiting
-            sleep 2
-          done
+          # Process DEV.to articles
+          LATEST_DEVTO_ARTICLE=$(jq -r '.[0]' devto_articles.json || echo '{}')
+          DEVTO_TITLE=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.title' || echo 'No Title')
+          DEVTO_URL=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.url' || echo 'No URL')
+          DEVTO_MESSAGE="New DEV.to article published: $DEVTO_TITLE, URL:$DEVTO_URL"
+
+          # Send messages to Telegram
+          curl -s --data "chat_id=$TELEGRAM_CHAT_ID&text=$DEVTO_MESSAGE" \
+            "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"
 
       - name: Commit last posted article ID
         if: steps.check_new_article.outputs.new_article == 'true'

@@ -32,66 +32,54 @@ jobs:
           echo "$CONTENT" > devto_articles.json
           cat devto_articles.json  # Output the contents for debugging
 
-      - name: Check if new article is posted
-        id: check_new_article
+      - name: Check for new articles
+        id: check_new_articles
         run: |
-          # Get the ID of the latest article
-          LATEST_DEVTO_ARTICLE_ID=$(jq -r '.[0].id' devto_articles.json || echo '0')
-          
           # Read the last posted article ID from the file
           LAST_POSTED_ARTICLE_ID=$(cat last_posted_article_id.txt || echo '0')
-          
-          # Check if the latest article is new
-          if [ "$LATEST_DEVTO_ARTICLE_ID" != "$LAST_POSTED_ARTICLE_ID" ]; then
-            echo "New article found"
+
+          # Find all articles with ID greater than last posted
+          NEW_ARTICLES=$(jq --argjson last_id "$LAST_POSTED_ARTICLE_ID" '[.[] | select(.id > $last_id)]' devto_articles.json)
+          NEW_COUNT=$(echo "$NEW_ARTICLES" | jq 'length')
+
+          if [ "$NEW_COUNT" -gt 0 ]; then
+            echo "Found $NEW_COUNT new articles"
             echo "new_article=true" >> $GITHUB_OUTPUT
-            echo $LATEST_DEVTO_ARTICLE_ID > last_posted_article_id.txt
+            echo "$NEW_ARTICLES" > new_articles.json
           else
-            echo "No new article"
+            echo "No new articles"
             echo "new_article=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Post to Telegram
-        if: steps.check_new_article.outputs.new_article == 'true'
+      - name: Post all new articles to Telegram
+        if: steps.check_new_articles.outputs.new_article == 'true'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Read the last posted article ID
-          LAST_POSTED_ARTICLE_ID=$(cat last_posted_article_id.txt)
-          
-          # Process all new DEV.to articles (in reverse order to post oldest first)
-          jq -c 'reverse | .[]' devto_articles.json | while read -r article; do
+          # Post all new articles in order (oldest first)
+          LAST_POSTED_ARTICLE_ID=$(cat last_posted_article_id.txt || echo '0')
+          jq -c 'sort_by(.id) | .[]' new_articles.json | while read -r article; do
             ARTICLE_ID=$(echo $article | jq -r '.id')
-            
-            # Skip if this is not a new article
-            if [ "$ARTICLE_ID" -le "$LAST_POSTED_ARTICLE_ID" ]; then
-              continue
-            fi
-            
             TITLE=$(echo $article | jq -r '.title')
             URL=$(echo $article | jq -r '.url')
             DESCRIPTION=$(echo $article | jq -r '.description // ""')
-            
+
             # Format message with Markdown
             MESSAGE="*New DEV.to article published:*%0A[${TITLE}](${URL})%0A%0A${DESCRIPTION}"
-            
+
             # Send message to Telegram
             curl -s --data "chat_id=$TELEGRAM_CHAT_ID&text=$MESSAGE&parse_mode=Markdown" \
               "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"
-            
-            # Update the last posted article ID (use the latest one)
-            if [ "$ARTICLE_ID" -gt "$LAST_POSTED_ARTICLE_ID" ]; then
-              LAST_POSTED_ARTICLE_ID=$ARTICLE_ID
-              echo $LAST_POSTED_ARTICLE_ID > last_posted_article_id.txt
-            fi
-            
-            # Wait a bit between messages to avoid rate limiting
+
+            # Update the last posted article ID
+            echo $ARTICLE_ID > last_posted_article_id.txt
+            LAST_POSTED_ARTICLE_ID=$ARTICLE_ID
             sleep 2
           done
 
       - name: Commit last posted article ID
-        if: steps.check_new_article.outputs.new_article == 'true'
+        if: steps.check_new_articles.outputs.new_article == 'true'
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'

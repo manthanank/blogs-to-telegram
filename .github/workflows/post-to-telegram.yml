@@ -52,17 +52,24 @@ jobs:
           LATEST_DEVTO_ARTICLE=$(jq -r '.[0]' devto_articles.json || echo '{}')
           DEVTO_TITLE=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.title' || echo 'No Title')
           DEVTO_URL=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.url' || echo 'No URL')
-          DEVTO_MESSAGE="New DEV.to article published: $DEVTO_TITLE, URL:$DEVTO_URL"
+          DEVTO_DESCRIPTION=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.description' || echo '')
+          
+          # Create a nicely formatted message
+          DEVTO_MESSAGE="🚀 New DEV.to article published!
 
-          # Send messages to Telegram
-          curl -s --data "chat_id=$TELEGRAM_CHAT_ID&text=$DEVTO_MESSAGE" \
+          📝 *$DEVTO_TITLE*
+
+          🔗 Read here: $DEVTO_URL"
+
+          # Add description if available
+          if [ "$DEVTO_DESCRIPTION" != "" ] && [ "$DEVTO_DESCRIPTION" != "null" ]; then
+            DEVTO_MESSAGE="$DEVTO_MESSAGE
+
+          📖 $DEVTO_DESCRIPTION"
+          fi
+
+          # Send messages to Telegram with Markdown formatting
+          curl -s --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
+               --data-urlencode "text=$DEVTO_MESSAGE" \
+               --data "parse_mode=Markdown" \
             "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"
-
-      - name: Commit last posted article ID
-        if: steps.check_new_article.outputs.new_article == 'true'
-        run: |
-          git config --global user.name 'github-actions'
-          git config --global user.email 'github-actions@github.com'
-          git add last_posted_article_id.txt
-          git commit -m 'Update last posted article ID'
-          git push

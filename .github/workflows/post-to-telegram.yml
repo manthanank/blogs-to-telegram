@@ -35,11 +35,11 @@ jobs:
           # Check if the latest article is new
           if [ "$LATEST_DEVTO_ARTICLE_ID" != "$LAST_POSTED_ARTICLE_ID" ]; then
             echo "New article found"
-            echo "::set-output name=new_article::true"
+            echo "new_article=true" >> $GITHUB_OUTPUT
             echo $LATEST_DEVTO_ARTICLE_ID > last_posted_article_id.txt
           else
             echo "No new article"
-            echo "::set-output name=new_article::false"
+            echo "new_article=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Post to Telegram

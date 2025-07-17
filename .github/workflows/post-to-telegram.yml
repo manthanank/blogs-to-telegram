@@ -50,11 +50,19 @@ jobs:
         run: |
           # Process DEV.to articles
           LATEST_DEVTO_ARTICLE=$(jq -r '.[0]' devto_articles.json || echo '{}')
-          DEVTO_TITLE=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.title' || echo 'No Title')
-          DEVTO_URL=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.url' || echo 'No URL')
+          DEVTO_TITLE=$(echo "$LATEST_DEVTO_ARTICLE" | jq -r '.title // "No Title"')
+          DEVTO_URL=$(echo "$LATEST_DEVTO_ARTICLE" | jq -r '.url // "No URL"')
+          
+          # Debug output
+          echo "Article Title: $DEVTO_TITLE"
+          echo "Article URL: $DEVTO_URL"
+          
+          # URL encode the message components
+          ENCODED_TITLE=$(echo "$DEVTO_TITLE" | sed 's/ /%20/g' | sed 's/!/%21/g')
+          ENCODED_URL=$(echo "$DEVTO_URL" | sed 's/#/%23/g' | sed 's/&/%26/g')
           
           # Create formatted message with proper encoding
-          DEVTO_MESSAGE="🚀 New DEV.to article published!%0A%0A📖 $DEVTO_TITLE%0A%0A🔗 $DEVTO_URL"
+          DEVTO_MESSAGE="🚀 New DEV.to article published!%0A%0A📖 $ENCODED_TITLE%0A%0A🔗 Read here: $ENCODED_URL"
 
           # Send messages to Telegram
           curl -s --data "chat_id=$TELEGRAM_CHAT_ID&text=$DEVTO_MESSAGE" \

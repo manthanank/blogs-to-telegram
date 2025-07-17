@@ -52,7 +52,9 @@ jobs:
           LATEST_DEVTO_ARTICLE=$(jq -r '.[0]' devto_articles.json || echo '{}')
           DEVTO_TITLE=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.title' || echo 'No Title')
           DEVTO_URL=$(echo $LATEST_DEVTO_ARTICLE | jq -r '.url' || echo 'No URL')
-          DEVTO_MESSAGE="New DEV.to article published: $DEVTO_TITLE%0A%0AURL: $DEVTO_URL"
+          
+          # Create formatted message with proper encoding
+          DEVTO_MESSAGE="🚀 New DEV.to article published!%0A%0A📖 $DEVTO_TITLE%0A%0A🔗 $DEVTO_URL"
 
           # Send messages to Telegram
           curl -s --data "chat_id=$TELEGRAM_CHAT_ID&text=$DEVTO_MESSAGE" \

@@ -36,7 +36,7 @@ jobs:
           if [ "$LATEST_DEVTO_ARTICLE_ID" != "$LAST_POSTED_ARTICLE_ID" ]; then
             echo "New article found"
             echo "new_article=true" >> $GITHUB_OUTPUT
-            echo $LATEST_DEVTO_ARTICLE_ID > last_posted_article_id.txt
+            echo "latest_article_id=$LATEST_DEVTO_ARTICLE_ID" >> $GITHUB_OUTPUT
           else
             echo "No new article"
             echo "new_article=false" >> $GITHUB_OUTPUT
@@ -69,7 +69,27 @@ jobs:
           fi
 
           # Send messages to Telegram with Markdown formatting
-          curl -s --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
+          TELEGRAM_RESPONSE=$(curl -s --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
                --data-urlencode "text=$DEVTO_MESSAGE" \
                --data "parse_mode=Markdown" \
-            "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"
+            "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage")
+          
+          # Check if the message was sent successfully
+          if echo "$TELEGRAM_RESPONSE" | jq -e '.ok == true' > /dev/null; then
+            echo "Message sent successfully to Telegram"
+            # Update the last posted article ID only after successful posting
+            echo "${{ steps.check_new_article.outputs.latest_article_id }}" > last_posted_article_id.txt
+          else
+            echo "Failed to send message to Telegram"
+            echo "Response: $TELEGRAM_RESPONSE"
+            exit 1
+          fi
+
+      - name: Commit updated article ID
+        if: steps.check_new_article.outputs.new_article == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add last_posted_article_id.txt
+          git commit -m "Update last posted article ID" || echo "No changes to commit"
+          git push
